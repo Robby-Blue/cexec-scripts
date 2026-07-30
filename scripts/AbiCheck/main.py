@@ -24,6 +24,7 @@ def get_years():
 def create_webhook(years):
     return {
         "title": "upcoming zdf broadcasts",
+        "url": "https://za-aufgaben.nibis.de/",
         "embeds": [
             {
                 "fields": [
