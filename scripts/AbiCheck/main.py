@@ -23,7 +23,7 @@ def get_years():
 
 def create_webhook(years):
     return {
-        "title": "upcoming zdf broadcasts",
+        "title": "2026 in za-aufgaben",
         "url": "https://za-aufgaben.nibis.de/",
         "embeds": [
             {
@@ -43,7 +43,7 @@ def create_field(years):
 
 years = get_years()
 
-is_updated = "2025" in years
+is_updated = "2026" in years
 
 if is_updated:
     with open("/app/output/output.json", "w") as f:

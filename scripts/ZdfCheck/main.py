@@ -2,11 +2,11 @@ import json
 import requests
 
 from datetime import date, datetime, timedelta
-from dateutil.relativedelta import relativedelta
+from dateutil.relativedelta import relativedelta, MO
 from zoneinfo import ZoneInfo
 
-def find_broadcasts(name, weekday, token):
-    data = get_broadcasts_data(token, weekday)
+def find_broadcasts(name, weekday, weeks_offset, token):
+    data = get_broadcasts_data(token, weekday, weeks_offset)
     
     broadcasts = data["data"]["epg"][0]["broadcasts"]
     
@@ -25,8 +25,8 @@ def find_broadcasts(name, weekday, token):
     return finds
 
 
-def get_broadcasts_data(token, weekday):
-    times = strings_at(weekday)
+def get_broadcasts_data(token, weekday, weeks_offset):
+    times = strings_at(weekday, weeks_offset)
     print(f"{times=}")
     
     var = {
@@ -71,9 +71,11 @@ def get_api_token():
 
     return token
 
-def strings_at(weekday):
+def strings_at(weekday, weeks_offset):
     today = date.today()
-    target_date = today + relativedelta(weekday=weekday)
+    monday = today + relativedelta(weekday=MO(-1))
+    
+    target_date = monday + relativedelta(weekday=weekday, weeks=weeks_offset)
     end_date = target_date + timedelta(days=1)
 
     return {
@@ -128,8 +130,8 @@ def format_time_from_iso(iso_time):
 token = get_api_token()
 
 finds = []
-finds.extend(find_broadcasts("Die Anstalt", 1, token))
-finds.extend(find_broadcasts("ZDF Magazin Royale", 4, token))
+finds.extend(find_broadcasts("Die Anstalt", 1, 1, token))
+finds.extend(find_broadcasts("ZDF Magazin Royale", 4, 0, token))
 
 if len(finds):
     with open("/app/output/output.json", "w") as f:
