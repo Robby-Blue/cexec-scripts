@@ -1,1 +1,1 @@
-python main.py
+python /app/script/main.py
