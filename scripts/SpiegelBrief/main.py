@@ -18,7 +18,9 @@ def get_articles():
     
     for article_xml in articles_xml:
         title = article_xml.find("title").text
-        description = article_xml.find("description").text
+        
+        description_xml = article_xml.find("description")
+        description = description_xml.text if description_xml is not None else ""
         link = article_xml.find("link").text
         
         article = {
@@ -27,12 +29,13 @@ def get_articles():
             "link": link
         }
         
+        print(article)
+        
         articles.append(article)
     
     return articles
     
 def discord_webhook_from_articles(articles):
-    
     return {
         "title": "SpiegelNews",
         "embeds": [
@@ -59,8 +62,6 @@ def field_from_article(article):
     }
 
 articles = get_articles()
-
-print(discord_webhook_from_articles(articles))
 
 with open("/app/output/output.json", "w") as f:
     json.dump({
