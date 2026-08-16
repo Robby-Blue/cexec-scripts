@@ -3,8 +3,9 @@ import argparse
 import subprocess
 import shutil
 import os
+import json
 
-def install_scripts(source_path, destination_path):
+def install_scripts(source_path, destination_path, device):
     source_scripts_path = os.path.join(source_path, "scripts")
     destination_scripts_path = os.path.join(destination_path, "scripts")
     
@@ -12,14 +13,31 @@ def install_scripts(source_path, destination_path):
     destination_scripts = os.listdir(destination_scripts_path)
   
     for script in source_scripts:
-        if script not in destination_scripts:
-            continue
+        already_exists = script in destination_scripts
+
         source_script_path = os.path.join(source_scripts_path, script)
+        
+        script_config = read_script_config(source_script_path)
+        supported_devices = script_config.get("devices", [])
+        
+        device_is_supported = device in supported_devices
+        
+        should_copy = already_exists or device_is_supported
+
+        if not should_copy:
+            continue
+
         destination_script_path = os.path.join(destination_scripts_path, script)
-            
+        os.makedirs(destination_script_path, exist_ok=True)
+        
         copy_folder(source_script_path, destination_script_path)
 
-def copy_folder(source_path, destination_path):
+def read_script_config(script_path):
+    script_config_path = os.path.join(script_path, "config.json")
+    with open(script_config_path, "r") as f:
+        return json.load(f)
+
+def copy_folder(source_path, destination_path):    
     source_files = os.listdir(source_path)
     destination_files = os.listdir(destination_path)
     
@@ -70,10 +88,11 @@ def delete(path):
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('-a', '--auto', action='store_true')
-parser.add_argument('-b', '--build', action='store_true')
 parser.add_argument('-i', '--source_folder', default=".")
 parser.add_argument('-o', '--destination_folder', default="..")
+parser.add_argument('-a', '--auto', action='store_true')
+parser.add_argument('-d', '--device')
+parser.add_argument('-b', '--build', action='store_true')
 
 args = parser.parse_args()
 
@@ -85,4 +104,5 @@ if args.build:
     print("build not supported yet")
     exit(1)
 
-install_scripts(args.source_folder, args.destination_folder)
+install_scripts(args.source_folder, args.destination_folder,
+    args.device)
