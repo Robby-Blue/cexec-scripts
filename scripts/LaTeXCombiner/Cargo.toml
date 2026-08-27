@@ -1,0 +1,18 @@
+[package]
+name = "LaTeXCombiner"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+glp = { git = "https://github.com/robby-Blue/glp" }
+serde = "1"
+serde_json = "1"
+
+[profile.dev]
+opt-level = 0
+debug = 0
+strip = "debuginfo"
+split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+opt-level = 3

@@ -31,7 +31,7 @@ def run_script(name):
     
     os.makedirs(input_path, exist_ok=True)
     
-    workspace_mount = docker.types.Mount(target="/app/workspace", source=None, type="tmpfs")
+    workspace_mount = docker.types.Mount(target="/app/workspace", source=None, type="volume")
     script_mount = docker.types.Mount(target="/app/script", source=script_path, type="bind", read_only=True)
     output_mount = docker.types.Mount(target="/app/output", source=output_path, type="bind")
     input_mount = docker.types.Mount(target="/app/input", source=input_path, type="bind", read_only=True)
