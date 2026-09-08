@@ -1,5 +1,5 @@
 use crate::planner::NestedElement;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -10,7 +10,7 @@ mod parser;
 mod planner;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let path = Path::new("/app/input/repo");
+    let path = Path::new("/app/workspace/repo");
     let structure = parser::parse_structure(path)?;
     println!("Parsed structure");
     println!("{structure:#?}");
@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{plan:#?}");
         let output_path = Path::new("/app/output/run").join(i.to_string());
 
-        combiner::combine(&plan.elements, path, &output_path)?;
+        combiner::combine(&plan, path, &output_path)?;
     }
     println!("Wrote plans");
 

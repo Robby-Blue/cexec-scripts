@@ -23,8 +23,6 @@ def compile():
         cwd="/app/workspace")
     
     p.wait()
-    
-    assert p.returncode == 0
 
     doc = pymupdf.open("/app/workspace/main.pdf")
     return doc
@@ -56,3 +54,4 @@ while True:
     last_doc = doc
 
 shutil.copy("/app/workspace/main.pdf", "/app/output/run")
+shutil.copy("/app/workspace/anki.txt", "/app/output/run")

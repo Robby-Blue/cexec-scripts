@@ -2,14 +2,14 @@ use std::ffi::OsStr;
 use std::path::Path;
 use std::path::PathBuf;
 
-use glp::CustomParser;
-use glp::ParseContext;
-use glp::Stream;
 use glp::errors::ParseError;
 use glp::parser::nodes::Expression;
 use glp::parser::nodes::FuncCall;
 use glp::parser::nodes::Value;
 use glp::tokenizer::Token;
+use glp::CustomParser;
+use glp::ParseContext;
+use glp::Stream;
 
 use std::fs;
 
@@ -18,7 +18,7 @@ use crate::Section;
 use crate::TitlePage;
 
 pub fn parse_structure(folder_path: &Path) -> Result<Document, ParseError> {
-    let file_path = folder_path.join("structure").join("structure.str");
+    let file_path = folder_path.join("meta").join("structure");
 
     if !file_path.exists() {
         let parts = fill_missing_parts(vec![], folder_path)?;
@@ -155,7 +155,7 @@ pub fn fill_missing_parts(
         if names.contains(&child.file_name().as_os_str()) {
             continue;
         }
-        if child.file_name() == "structure" {
+        if child.file_name() == "meta" {
             continue;
         }
         if child.file_name() == "globals" {

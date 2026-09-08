@@ -4,3 +4,4 @@ WORKDIR /app
 
 RUN apk add rust
 RUN apk add cargo
+RUN apk add git

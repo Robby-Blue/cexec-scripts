@@ -2,13 +2,10 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::{fs, io::Error};
 
-use crate::planner::{Element, NestedElement};
+use crate::Plan;
+use crate::planner::Element;
 
-pub fn combine(
-    plan: &Vec<NestedElement>,
-    base_path: &Path,
-    output_path: &Path,
-) -> Result<(), Error> {
+pub fn combine(plan: &Plan, base_path: &Path, output_path: &Path) -> Result<(), Error> {
     fs::create_dir_all(output_path)?;
 
     let mut contents_str = String::new();
@@ -24,11 +21,13 @@ pub fn combine(
 
     copy_folder(&base_release_globals, &output_release_globals)?;
 
-    for e in plan {
+    let layer = plan.title_path.len() - 1;
+    for e in plan.elements.iter() {
         let new_content = match &e.element {
             Element::TitlePage(title) => {
+                let layer_subs = "sub".repeat(layer);
                 let subs = "sub".repeat(e.nesting as usize);
-                format!("\\zc{subs}section{{{title}}}").to_string()
+                format!("\\zc{layer_subs}layer{subs}section{{{title}}}").to_string()
             }
             Element::LaTeXInclude(path) => {
                 let relative_folder = path.strip_prefix(base_path).unwrap();
@@ -39,7 +38,7 @@ pub fn combine(
 
                 let output_folder = output_path.join(&relative_folder);
 
-                let res = copy_section(path, &output_folder, e.nesting)?;
+                let res = copy_section(path, &output_folder, e.nesting, layer)?;
 
                 for (name, line) in res.packages {
                     if name.starts_with("/") {
@@ -80,13 +79,14 @@ fn copy_section(
     input_folder: &Path,
     output_folder: &Path,
     nesting: u8,
+    layer: usize,
 ) -> Result<SectionResult, Error> {
     copy_folder(input_folder, output_folder)?;
 
     let main_path = input_folder.join("main.tex");
 
     let main_src = fs::read_to_string(main_path)?;
-    let (new_main_src, res) = rewrite_main(main_src, nesting);
+    let (new_main_src, res) = rewrite_main(main_src, nesting, layer);
 
     fs::create_dir_all(output_folder)?;
     let new_main_path = output_folder.join("main.tex");
@@ -96,13 +96,25 @@ fn copy_section(
     Ok(res)
 }
 
-fn rewrite_main(mut src: String, nesting: u8) -> (String, SectionResult) {
+fn rewrite_main(mut src: String, nesting: u8, layer: usize) -> (String, SectionResult) {
     src = src.replace("\\documentclass{article}", "");
     src = src.replace("\\begin{document}", "");
     src = src.replace("\\end{document}", "");
 
-    let mut packages = HashMap::new();
+    let (mut src, packages) = remove_packages(src);
 
+    src = replace_sections(src, nesting, 0, layer);
+    src = replace_sections(src, nesting, 1, layer);
+    src = replace_sections(src, nesting, 2, layer);
+
+    src = delete_commmands(src);
+
+    let res = SectionResult::new(packages);
+    (src, res)
+}
+
+fn remove_packages(mut src: String) -> (String, HashMap<String, String>) {
+    let mut packages = HashMap::new();
     while src.contains("\\usepackage") {
         let line_start_index = src.find("\\usepackage").unwrap();
         let line_end_index = line_start_index + src[line_start_index..].find("\n").unwrap();
@@ -119,22 +131,31 @@ fn rewrite_main(mut src: String, nesting: u8) -> (String, SectionResult) {
         src = src.replace(line, "");
     }
 
-    src = replace_sections(src, nesting, 0);
-    src = replace_sections(src, nesting, 1);
-    src = replace_sections(src, nesting, 2);
-
-    let res = SectionResult::new(packages);
-    (src, res)
+    (src, packages)
 }
 
-fn replace_sections(src: String, doc_nesting: u8, nesting: u8) -> String {
+fn replace_sections(src: String, doc_nesting: u8, nesting: u8, layer: usize) -> String {
     let original_subs = "sub".repeat(nesting as usize);
     let original = format!("\\{original_subs}section{{");
 
+    let layer_subs = "sub".repeat(layer);
     let new_subs = "sub".repeat((doc_nesting + nesting) as usize);
-    let new = format!("\\zc{new_subs}section{{");
+    let new = format!("\\zc{layer_subs}layer{new_subs}section{{");
 
     src.replace(&original, &new)
+}
+
+fn delete_commmands(mut src: String) -> String {
+    for (i, _) in src.clone().match_indices("\\newcommand") {
+        let command_start_index = src[i + 1..].find("\\").unwrap() + i + 2;
+        let command_end_index = src[i..].find("}").unwrap() + i;
+
+        let command_name = &src[command_start_index..command_end_index];
+
+        src += &format!("\\let\\{command_name}\\undefined\n");
+    }
+
+    src
 }
 
 fn copy_folder(source_path: &Path, destination_path: &Path) -> Result<(), Error> {
