@@ -1,6 +1,7 @@
 use crate::planner::NestedElement;
 use serde_json::{Value, json};
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -15,7 +16,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Parsed structure");
     println!("{structure:#?}");
 
-    let plans = walk_document(&structure, vec![]);
+    let globals = structure.globals.clone();
+    let plans = walk_document(&structure, &globals, vec![]);
     println!("Created {} plans", plans.iter().count());
 
     for (i, plan) in plans.iter().enumerate() {
@@ -74,7 +76,11 @@ fn get_data_for_task(id: usize, plan: &Plan) -> Value {
     })
 }
 
-fn walk_document(doc: &Document, mut title_path: Vec<String>) -> Vec<Plan> {
+fn walk_document(
+    doc: &Document,
+    globals: &HashMap<String, String>,
+    mut title_path: Vec<String>,
+) -> Vec<Plan> {
     let mut plans = vec![];
 
     let elements = planner::plan_document(&doc);
@@ -84,6 +90,7 @@ fn walk_document(doc: &Document, mut title_path: Vec<String>) -> Vec<Plan> {
 
     let plan = Plan {
         title_path: title_path.clone(),
+        globals: globals.clone(),
         elements,
     };
     plans.push(plan);
@@ -92,7 +99,7 @@ fn walk_document(doc: &Document, mut title_path: Vec<String>) -> Vec<Plan> {
     for part in iter {
         match &**part {
             Section::Document(document) => {
-                plans.append(&mut walk_document(&document, title_path.clone()))
+                plans.append(&mut walk_document(&document, globals, title_path.clone()))
             }
             Section::Section(section_path) => {
                 let elements = planner::plan_section(&section_path);
@@ -103,6 +110,7 @@ fn walk_document(doc: &Document, mut title_path: Vec<String>) -> Vec<Plan> {
 
                 let plan = Plan {
                     title_path: new_title_path,
+                    globals: globals.clone(),
                     elements,
                 };
 
@@ -117,7 +125,7 @@ fn walk_document(doc: &Document, mut title_path: Vec<String>) -> Vec<Plan> {
 fn get_title_from_elements(elements: &Vec<NestedElement>) -> String {
     let element = elements.first().unwrap();
     let title = match &element.element {
-        planner::Element::TitlePage(title) => title.clone(),
+        planner::Element::TitlePage(titlepage) => titlepage.title.clone(),
         planner::Element::LaTeXInclude(path) => path
             .file_name()
             .expect("bad name")
@@ -130,13 +138,15 @@ fn get_title_from_elements(elements: &Vec<NestedElement>) -> String {
 
 #[derive(Debug)]
 struct Plan {
+    pub globals: HashMap<String, String>,
     pub title_path: Vec<String>,
     pub elements: Vec<NestedElement>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct TitlePage {
     pub title: String,
+    pub args: HashMap<String, String>,
 }
 
 #[derive(Debug)]
@@ -148,15 +158,22 @@ enum Section {
 #[derive(Debug)]
 struct Document {
     pub path: PathBuf,
+    pub globals: HashMap<String, String>,
     pub title_page: Option<TitlePage>,
     pub parts: Vec<Box<Section>>,
 }
 impl Document {
-    pub fn new(path: PathBuf, title_page: Option<TitlePage>, parts: Vec<Section>) -> Self {
+    pub fn new(
+        path: PathBuf,
+        globals: HashMap<String, String>,
+        title_page: Option<TitlePage>,
+        parts: Vec<Section>,
+    ) -> Self {
         let parts = parts.into_iter().map(|p| Box::new(p)).collect();
 
         Document {
             path,
+            globals,
             title_page,
             parts,
         }

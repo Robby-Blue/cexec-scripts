@@ -1,6 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
-use crate::{Document, Section};
+use crate::{Document, Section, TitlePage};
 
 pub fn plan_document(doc: &Document) -> Vec<NestedElement> {
     flatten_document(doc, 0)
@@ -21,15 +24,17 @@ fn flatten_document(doc: &Document, nesting: u8) -> Vec<NestedElement> {
     let mut elements = vec![];
 
     let title_element = if let Some(title_page) = &doc.title_page {
-        Element::TitlePage(title_page.title.clone())
+        Element::TitlePage(title_page.clone())
     } else {
-        Element::TitlePage(
-            doc.path
+        Element::TitlePage(TitlePage {
+            title: doc
+                .path
                 .file_name()
                 .expect("name")
                 .to_string_lossy()
                 .into_owned(),
-        )
+            args: HashMap::new(),
+        })
     };
     let nested_element = NestedElement {
         nesting,
@@ -64,6 +69,6 @@ pub struct NestedElement {
 
 #[derive(Debug)]
 pub enum Element {
-    TitlePage(String),
+    TitlePage(TitlePage),
     LaTeXInclude(PathBuf),
 }

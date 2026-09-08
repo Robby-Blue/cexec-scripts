@@ -2,32 +2,68 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::{fs, io::Error};
 
-use crate::Plan;
 use crate::planner::Element;
+use crate::{Plan, TitlePage};
 
 pub fn combine(plan: &Plan, base_path: &Path, output_path: &Path) -> Result<(), Error> {
     fs::create_dir_all(output_path)?;
 
-    let mut contents_str = String::new();
-    let mut packages: HashMap<String, String> = HashMap::new();
+    let base_release_globals = base_path.join("globals").join("release");
+    let output_release_globals = output_path.join("globals").join("release");
+    copy_folder(&base_release_globals, &output_release_globals)?;
 
+    let mut packages: HashMap<String, String> = HashMap::new();
     packages.insert(
         "globals/release/main".to_string(),
         "\\usepackage{globals/release/main}".to_string(),
     );
+    let (new_packages, contents_str) = process_documents(plan, base_path, output_path)?;
+    packages.extend(new_packages);
 
-    let base_release_globals = base_path.join("globals").join("release");
-    let output_release_globals = output_path.join("globals").join("release");
+    let main_src = process_main_tex(&packages, &plan.globals, &contents_str);
+    let output_main = output_path.join("main.tex");
+    fs::write(output_main, &main_src)?;
 
-    copy_folder(&base_release_globals, &output_release_globals)?;
+    Ok(())
+}
+
+fn process_main_tex(
+    packages: &HashMap<String, String>,
+    globals: &HashMap<String, String>,
+    contents_str: &String,
+) -> String {
+    let mut src = include_str!("template.tex").to_string();
+
+    let mut packages_str = String::new();
+    for (_, line) in packages {
+        packages_str += &(line.to_owned() + "\n");
+    }
+    src = src.replace("<packages>", &packages_str);
+
+    let mut globals_str = String::new();
+    for (key, value) in globals {
+        globals_str += &(format!("\\def\\zccglobal{key}{{{value}}}") + "\n");
+    }
+    src = src.replace("<globals>", &globals_str);
+
+    src = src.replace("<contents>", &contents_str);
+
+    src
+}
+
+fn process_documents(
+    plan: &Plan,
+    base_path: &Path,
+    output_path: &Path,
+) -> Result<(HashMap<String, String>, String), Error> {
+    let mut packages: HashMap<String, String> = HashMap::new();
+    let mut contents_str = String::new();
 
     let layer = plan.title_path.len() - 1;
     for e in plan.elements.iter() {
         let new_content = match &e.element {
-            Element::TitlePage(title) => {
-                let layer_subs = "sub".repeat(layer);
-                let subs = "sub".repeat(e.nesting as usize);
-                format!("\\zc{layer_subs}layer{subs}section{{{title}}}").to_string()
+            Element::TitlePage(titlepage) => {
+                titlepage_to_latex(titlepage, layer, e.nesting as usize)
             }
             Element::LaTeXInclude(path) => {
                 let relative_folder = path.strip_prefix(base_path).unwrap();
@@ -60,19 +96,24 @@ pub fn combine(plan: &Plan, base_path: &Path, output_path: &Path) -> Result<(), 
         contents_str = contents_str + new_content.as_str() + "\n";
     }
 
-    let mut packages_str = String::new();
-    for (_, line) in packages {
-        packages_str = packages_str + line.as_str() + "\n";
+    Ok((packages, contents_str))
+}
+
+fn titlepage_to_latex(titlepage: &TitlePage, layer: usize, nesting: usize) -> String {
+    let title = titlepage.title.clone();
+
+    let layer_subs = "sub".repeat(layer);
+    let subs = "sub".repeat(nesting);
+
+    let mut src = String::new();
+
+    for (key, value) in titlepage.args.iter() {
+        src += &format!("\\def\\zcc{subs}titlepage{key}{{{value}}}");
     }
 
-    let template = include_str!("template.tex");
-    let template = template.replace("<contents>", &contents_str);
-    let template = template.replace("<packages>", &packages_str);
+    src += &format!("\\zc{layer_subs}layer{subs}section{{{title}}}");
 
-    let output_main = output_path.join("main.tex");
-    fs::write(output_main, &template)?;
-
-    Ok(())
+    src
 }
 
 fn copy_section(

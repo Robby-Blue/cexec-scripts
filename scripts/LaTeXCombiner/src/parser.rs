@@ -1,15 +1,16 @@
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::path::PathBuf;
 
+use glp::CustomParser;
+use glp::ParseContext;
+use glp::Stream;
 use glp::errors::ParseError;
 use glp::parser::nodes::Expression;
 use glp::parser::nodes::FuncCall;
 use glp::parser::nodes::Value;
 use glp::tokenizer::Token;
-use glp::CustomParser;
-use glp::ParseContext;
-use glp::Stream;
 
 use std::fs;
 
@@ -23,7 +24,12 @@ pub fn parse_structure(folder_path: &Path) -> Result<Document, ParseError> {
     if !file_path.exists() {
         let parts = fill_missing_parts(vec![], folder_path)?;
 
-        return Ok(Document::new(folder_path.into(), None, parts));
+        return Ok(Document::new(
+            folder_path.into(),
+            HashMap::new(),
+            None,
+            parts,
+        ));
     }
 
     let custom = StructureParser {};
@@ -45,7 +51,7 @@ fn parse_document(
     }
 
     let title_page = match allow_call(doc_call.kwargs.get("titlepage"))? {
-        Some(f) => Some(parse_title_page(&f, ctx)?),
+        Some(f) => Some(parse_title_page(&f)?),
         None => None,
     };
 
@@ -64,21 +70,52 @@ fn parse_document(
         parts = fill_missing_parts(parts, &ctx.folder_path)?;
     }
 
+    let globals = match allow_call(doc_call.kwargs.get("globals"))? {
+        Some(f) => parse_globals(&f)?,
+        None => HashMap::new(),
+    };
+
     let pathbuf = ctx.folder_path.clone().into();
-    Ok(Document::new(pathbuf, title_page, parts))
+    Ok(Document::new(pathbuf, globals, title_page, parts))
 }
 
-fn parse_title_page(
-    title_page_call: &FuncCall<StructureParser>,
-    _ctx: &StructureContext,
-) -> Result<TitlePage, ParseError> {
+fn parse_title_page(title_page_call: &FuncCall<StructureParser>) -> Result<TitlePage, ParseError> {
     if &title_page_call.name.text != "titlepage" {
         return Err(ParseError::new("expected titlepage call"));
     }
 
     let title = expect_string(title_page_call.kwargs.get("title"), "title")?;
 
-    Ok(TitlePage { title })
+    let mut args = HashMap::new();
+    for (key, val) in title_page_call.kwargs.iter() {
+        let val = match *val.clone() {
+            Expression::Value(Value::String(s)) => s,
+            _ => continue,
+        };
+
+        args.insert(key.clone(), val);
+    }
+
+    Ok(TitlePage { title, args })
+}
+
+fn parse_globals(
+    globals_call: &FuncCall<StructureParser>,
+) -> Result<HashMap<String, String>, ParseError> {
+    if &globals_call.name.text != "globals" {
+        return Err(ParseError::new("expected global call"));
+    }
+    let mut globals = HashMap::new();
+    for (key, val) in globals_call.kwargs.iter() {
+        let val = match *val.clone() {
+            Expression::Value(Value::String(s)) => s,
+            _ => continue,
+        };
+
+        globals.insert(key.clone(), val);
+    }
+
+    Ok(globals)
 }
 
 fn parse_part(
