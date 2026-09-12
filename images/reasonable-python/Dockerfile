@@ -2,7 +2,7 @@ FROM alpine:3.24
 
 WORKDIR /app
 
-RUN apk add python3 py3-pip
+RUN apk add python3 py3-pip jq
 
 RUN python3 -m venv /venv
 ENV PATH="/venv/bin:$PATH"

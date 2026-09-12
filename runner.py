@@ -20,6 +20,7 @@ def run_script(name):
     output_global_path = os.path.join(output_path, "global")
     output_run_path = os.path.join(output_path, "run")
     input_path = os.path.join(workspace_path, "input")
+    vars_path = os.path.join(workspace_path, "vars.json")
     
     os.makedirs(workspace_path, exist_ok=True)
     
@@ -35,10 +36,11 @@ def run_script(name):
     script_mount = docker.types.Mount(target="/app/script", source=script_path, type="bind", read_only=True)
     output_mount = docker.types.Mount(target="/app/output", source=output_path, type="bind")
     input_mount = docker.types.Mount(target="/app/input", source=input_path, type="bind", read_only=True)
+    vars_mount = docker.types.Mount(target="/app/vars.json", source=vars_path, type="bind", read_only=True)
     
     container = docker_client.containers.run(image,
         detach=True, tty=True,
-        mounts=[workspace_mount, script_mount, output_mount, input_mount]
+        mounts=[workspace_mount, script_mount, output_mount, input_mount, vars_mount]
     )
     
     res = container.exec_run(["sh", "/app/script/entrypoint.sh"],

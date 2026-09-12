@@ -127,11 +127,16 @@ def format_time_from_iso(iso_time):
     
     return f"{berlin_dt.day}. {months[berlin_dt.month - 1]} {berlin_dt.year}, {berlin_dt.strftime('%H:%M')}"
 
+with open("/app/vars.json") as f:
+    vars = json.load(f)
+
+broadcast_name = vars["name"]
+broadcast_weekday = vars["weekday"]
+
 token = get_api_token()
 
 finds = []
-finds.extend(find_broadcasts("Die Anstalt", 1, 1, token))
-finds.extend(find_broadcasts("ZDF Magazin Royale", 4, 0, token))
+finds.extend(find_broadcasts(broadcast_name, broadcast_weekday, 0, token))
 
 if len(finds):
     with open("/app/output/output.json", "w") as f:
