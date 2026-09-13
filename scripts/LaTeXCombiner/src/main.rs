@@ -1,5 +1,5 @@
 use crate::planner::NestedElement;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     fs,
@@ -61,6 +61,10 @@ fn get_data_for_task(id: usize, plan: &Plan) -> Value {
     let final_path = format!("global/LaTeX/{repo_path}.pdf").to_owned();
 
     json!({
+        "vars": {
+            "name": plan.title_path[0],
+            "is_top_level_doc": plan.title_path.len() == 1
+        },
         "input_files": [{
             "server": {
                 "folder": "run",
