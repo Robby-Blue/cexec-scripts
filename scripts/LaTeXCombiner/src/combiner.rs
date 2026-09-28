@@ -1,9 +1,10 @@
+use chrono::DateTime;
 use std::collections::HashMap;
 use std::path::Path;
 use std::{fs, io::Error};
 
-use crate::planner::Element;
-use crate::{Plan, TitlePage};
+use crate::planner::{CommitInfo, Element};
+use crate::planner::{Plan, TitlePage};
 
 pub fn combine(plan: &Plan, base_path: &Path, output_path: &Path) -> Result<(), Error> {
     fs::create_dir_all(output_path)?;
@@ -20,7 +21,7 @@ pub fn combine(plan: &Plan, base_path: &Path, output_path: &Path) -> Result<(), 
     let (new_packages, contents_str) = process_documents(plan, base_path, output_path)?;
     packages.extend(new_packages);
 
-    let main_src = process_main_tex(&packages, &plan.globals, &contents_str);
+    let main_src = process_main_tex(&packages, &plan.globals, &contents_str, &plan.commit);
     let output_main = output_path.join("main.tex");
     fs::write(output_main, &main_src)?;
 
@@ -31,6 +32,7 @@ fn process_main_tex(
     packages: &HashMap<String, String>,
     globals: &HashMap<String, String>,
     contents_str: &String,
+    commit: &CommitInfo,
 ) -> String {
     let mut src = include_str!("template.tex").to_string();
 
@@ -42,8 +44,14 @@ fn process_main_tex(
 
     let mut globals_str = String::new();
     for (key, value) in globals {
-        globals_str += &(format!("\\def\\zccglobal{key}{{{value}}}") + "\n");
+        globals_str += &(format!("\\def\\zccglobal{key}{{{value}}}\n"));
     }
+
+    let hash = &commit.hash;
+    let datetime = DateTime::from_timestamp(commit.timestamp, 0).expect("bad timestamp");
+    let date_str = datetime.format("%d.%m.%Y").to_string();
+    globals_str += &(format!("\\def\\zcctitlepageeditdate{{{date_str}}}"));
+    globals_str += &(format!("\\def\\zcctitlepagecommit{{{hash}}}"));
     src = src.replace("<globals>", &globals_str);
 
     src = src.replace("<contents>", &contents_str);

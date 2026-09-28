@@ -14,9 +14,9 @@ use glp::tokenizer::Token;
 
 use std::fs;
 
-use crate::Document;
-use crate::Section;
-use crate::TitlePage;
+use crate::planner::Document;
+use crate::planner::Section;
+use crate::planner::TitlePage;
 
 pub fn parse_structure(folder_path: &Path) -> Result<Document, ParseError> {
     let file_path = folder_path.join("meta").join("structure");

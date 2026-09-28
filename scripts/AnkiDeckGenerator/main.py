@@ -2,6 +2,8 @@ import output_parser
 import genanki
 import json
 
+import sys
+
 styling = """
 .card {
     font-family: arial;
@@ -54,14 +56,19 @@ for card_data in cards:
     
     if id in ids:
         print(f"Duplicate Id: '{id}'")
+        sys.exit(1)
     ids.append(id)
     if front_text in front_texts:
         print(f"Duplicate Front Text: '{front_text}'")
+        sys.exit(1)
     front_texts.append(front_text)
+    back_text = card_data["back"]
+    
+    print(f"[{id}] {front_text}: {back_text}")
     
     note = genanki.Note(
         model=normal_model,
-        fields=[front_text, card_data["back"]],
+        fields=[front_text, back_text],
         guid=id,
         tags=[card_data["topic"]])
     deck.add_note(note)

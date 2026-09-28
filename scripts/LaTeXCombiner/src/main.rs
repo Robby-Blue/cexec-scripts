@@ -1,24 +1,38 @@
-use crate::planner::NestedElement;
-use serde_json::{json, Value};
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-};
+use serde_json::{Value, json};
+use std::{collections::HashMap, fs, path::Path};
 
 mod combiner;
 mod parser;
 mod planner;
 
+use crate::planner::{CommitInfo, Plan};
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let path = Path::new("/app/workspace/repo");
+    let path = Path::new("/app/input/repo");
     let structure = parser::parse_structure(path)?;
     println!("Parsed structure");
     println!("{structure:#?}");
 
+    let last_edits_path = Path::new("/app/input/git_file_edit_infos.json");
+    let last_edits_str = fs::read_to_string(last_edits_path)?;
+    let last_edit_times: HashMap<String, CommitInfo> =
+        serde_json::from_str(last_edits_str.as_str())?;
+
+    let planner = planner::Planner { last_edit_times };
     let globals = structure.globals.clone();
-    let plans = walk_document(&structure, &globals, vec![]);
+    let plans = planner.plan_structure(&structure, &globals);
     println!("Created {} plans", plans.iter().count());
+
+    let last_builds_path = Path::new("/app/input/last_build_times.json");
+    let mut last_builds: HashMap<String, i64> = if last_builds_path.exists() {
+        let last_builds_str = fs::read_to_string(last_builds_path)?;
+        serde_json::from_str(last_builds_str.as_str())?
+    } else {
+        HashMap::new()
+    };
+
+    let plans = filter_new_plans(plans, &last_builds);
+    println!("{} new plans", plans.iter().count());
 
     for (i, plan) in plans.iter().enumerate() {
         println!("Writing plan {i}");
@@ -26,6 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let output_path = Path::new("/app/output/run").join(i.to_string());
 
         combiner::combine(&plan, path, &output_path)?;
+        last_builds.insert(plan.title_path.join("/"), plan.commit.timestamp);
     }
     println!("Wrote plans");
 
@@ -34,7 +49,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write("/app/output/output.json", json_string)?;
     println!("Wrote output.json");
 
+    fs::create_dir_all("/app/output/global/LaTeX/")?;
+    let last_builds_str = serde_json::to_string_pretty(&last_builds)?;
+    fs::write(
+        "/app/output/global/LaTeX/last_build_times.json",
+        last_builds_str,
+    )?;
+    println!("Wrote last_build_times.json");
+
     Ok(())
+}
+
+fn filter_new_plans(plans: Vec<Plan>, last_builds: &HashMap<String, i64>) -> Vec<Plan> {
+    plans
+        .into_iter()
+        .filter(|p| {
+            let path_str = p.title_path.join("/");
+            let last_build = last_builds.get(&path_str).unwrap_or(&0);
+
+            last_build < &p.commit.timestamp
+        })
+        .collect()
 }
 
 fn get_output_json(plans: &Vec<Plan>) -> Value {
@@ -78,108 +113,4 @@ fn get_data_for_task(id: usize, plan: &Plan) -> Value {
             "server": final_path,
         }],
     })
-}
-
-fn walk_document(
-    doc: &Document,
-    globals: &HashMap<String, String>,
-    mut title_path: Vec<String>,
-) -> Vec<Plan> {
-    let mut plans = vec![];
-
-    let elements = planner::plan_document(&doc);
-
-    let title = get_title_from_elements(&elements);
-    title_path.push(title);
-
-    let plan = Plan {
-        title_path: title_path.clone(),
-        globals: globals.clone(),
-        elements,
-    };
-    plans.push(plan);
-
-    let iter = doc.parts.iter();
-    for part in iter {
-        match &**part {
-            Section::Document(document) => {
-                plans.append(&mut walk_document(&document, globals, title_path.clone()))
-            }
-            Section::Section(section_path) => {
-                let elements = planner::plan_section(&section_path);
-
-                let title = get_title_from_elements(&elements);
-                let mut new_title_path = title_path.clone();
-                new_title_path.push(title);
-
-                let plan = Plan {
-                    title_path: new_title_path,
-                    globals: globals.clone(),
-                    elements,
-                };
-
-                plans.push(plan)
-            }
-        }
-    }
-
-    plans
-}
-
-fn get_title_from_elements(elements: &Vec<NestedElement>) -> String {
-    let element = elements.first().unwrap();
-    let title = match &element.element {
-        planner::Element::TitlePage(titlepage) => titlepage.title.clone(),
-        planner::Element::LaTeXInclude(path) => path
-            .file_name()
-            .expect("bad name")
-            .to_string_lossy()
-            .to_string(),
-    };
-
-    title.replace(" ", "_").to_lowercase()
-}
-
-#[derive(Debug)]
-struct Plan {
-    pub globals: HashMap<String, String>,
-    pub title_path: Vec<String>,
-    pub elements: Vec<NestedElement>,
-}
-
-#[derive(Clone, Debug)]
-struct TitlePage {
-    pub title: String,
-    pub args: HashMap<String, String>,
-}
-
-#[derive(Debug)]
-enum Section {
-    Document(Document),
-    Section(PathBuf),
-}
-
-#[derive(Debug)]
-struct Document {
-    pub path: PathBuf,
-    pub globals: HashMap<String, String>,
-    pub title_page: Option<TitlePage>,
-    pub parts: Vec<Box<Section>>,
-}
-impl Document {
-    pub fn new(
-        path: PathBuf,
-        globals: HashMap<String, String>,
-        title_page: Option<TitlePage>,
-        parts: Vec<Section>,
-    ) -> Self {
-        let parts = parts.into_iter().map(|p| Box::new(p)).collect();
-
-        Document {
-            path,
-            globals,
-            title_page,
-            parts,
-        }
-    }
 }
