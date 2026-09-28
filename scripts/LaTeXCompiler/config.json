@@ -1,3 +1,6 @@
 {
-    "image": "full-latex"
+    "image": "full-latex",
+    "devices": [
+        "laptop"
+    ]
 }

@@ -1,3 +1,6 @@
 {
-    "image": "reasonable-rust"
+    "image": "reasonable-rust",
+    "devices": [
+        "laptop"
+    ]
 }

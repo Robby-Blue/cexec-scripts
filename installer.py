@@ -28,7 +28,6 @@ def install_scripts(source_path, destination_path, device):
             continue
 
         destination_script_path = os.path.join(destination_scripts_path, script)
-        os.makedirs(destination_script_path, exist_ok=True)
         
         copy_folder(source_script_path, destination_script_path)
 
@@ -37,7 +36,9 @@ def read_script_config(script_path):
     with open(script_config_path, "r") as f:
         return json.load(f)
 
-def copy_folder(source_path, destination_path):    
+def copy_folder(source_path, destination_path):
+    os.makedirs(destination_path, exist_ok=True)
+
     source_files = os.listdir(source_path)
     destination_files = os.listdir(destination_path)
     
@@ -54,7 +55,7 @@ def copy_folder(source_path, destination_path):
         if not needs_to_copy(source_file_path, destination_file_path):
             continue
 
-        if os.path.isdir(destination_file_path):
+        if os.path.isdir(source_file_path):
             copy_folder(source_file_path, destination_file_path)
         else:
             shutil.copy(source_file_path, destination_file_path)
