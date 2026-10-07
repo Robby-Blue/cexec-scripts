@@ -1,0 +1,1 @@
+python /app/script/main.py
