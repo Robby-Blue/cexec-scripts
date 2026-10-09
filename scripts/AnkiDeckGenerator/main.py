@@ -64,8 +64,6 @@ for card_data in cards:
     front_texts.append(front_text)
     back_text = card_data["back"]
     
-    print(f"[{id}] {front_text}: {back_text}")
-    
     note = genanki.Note(
         model=normal_model,
         fields=[front_text, back_text],

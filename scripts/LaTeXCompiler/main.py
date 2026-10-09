@@ -18,10 +18,14 @@ def docs_equal(last_doc, doc):
     return True, 0
 
 def compile():
-    p = subprocess.Popen(["lualatex", "--shell-escape",
+    command = ["lualatex", "--shell-escape",
         "-interaction=nonstopmode", "-halt-on-error", 
         "-output-directory=/app/workspace",
-        "/app/workspace/main.tex"],
+        "/app/workspace/main.tex"]
+    
+    print("$ " + " ".join(command))
+    p = subprocess.Popen(command,
+        stdout=subprocess.DEVNULL,
         cwd="/app/workspace")
     
     p.wait()
@@ -52,7 +56,7 @@ while True:
     if docs_are_equal:
         break
     else:
-        if page > best_page:
+        if page > best_page or compile_count == 1:
             best_page = page
             sub_best_recompile_count = 0
         else:
@@ -65,6 +69,7 @@ while True:
     last_doc = doc
 
 shutil.copy("/app/workspace/main.pdf", "/app/output/run")
+shutil.copy("/app/workspace/main.log", "/app/output/run")
 shutil.copy("/app/workspace/anki.txt", "/app/output/run")
 
 should_send, name = is_top_level_doc()

@@ -1,4 +1,4 @@
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::{collections::HashMap, fs, path::Path};
 
 mod combiner;
@@ -11,7 +11,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = Path::new("/app/input/repo");
     let structure = parser::parse_structure(path)?;
     println!("Parsed structure");
-    println!("{structure:#?}");
 
     let last_edits_path = Path::new("/app/input/git_file_edit_infos.json");
     let last_edits_str = fs::read_to_string(last_edits_path)?;
@@ -36,7 +35,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for (i, plan) in plans.iter().enumerate() {
         println!("Writing plan {i}");
-        println!("{plan:#?}");
         let output_path = Path::new("/app/output/run").join(i.to_string());
 
         combiner::combine(&plan, path, &output_path)?;

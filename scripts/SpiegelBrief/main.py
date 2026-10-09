@@ -29,8 +29,6 @@ def get_articles():
             "link": link
         }
         
-        print(article)
-        
         articles.append(article)
     
     return articles
