@@ -11,6 +11,8 @@ Adli API Architecture Explanation
     like price, original price, discounts, etc.
 """
 
+import os
+import sys
 import json
 import requests
 
@@ -45,15 +47,27 @@ TARGET_CATEGORIES = [
     "joghurt-quark-milchdesserts"
 ]
 
-def get_products():
-    leaflet_url = get_leaflet_url()
-    enrichment_url = get_enrichments_url(leaflet_url)
-    ids = get_product_ids(enrichment_url)
-    products = get_products_info(ids)
+def get_data():
+    leaflet_url = parse_aldi_page()
+    leaflet_name = leaflet_url.split("/")[-1]
+    
+    enrichment_url, leaflet_url = parse_viewer_page(leaflet_url)
+    ids = parse_enrichments(enrichment_url)
+    products, raw_products = parse_products(ids)
     target_products = filter_target_products(products)
-    return target_products, products
+    return {
+        "processed": {
+            "found_target_products_info": target_products,
+            "all_products_info": products,
+        },
+        "archival": {
+            "current_time": today.timestamp(),
+            "leaflet_name": leaflet_name,
+            "raw_products": raw_products
+        }
+    }
  
-def get_leaflet_url():
+def parse_aldi_page():
     """
     Implement step 1. The url can be found in the page props.
     """
@@ -76,7 +90,7 @@ def get_leaflet_url():
     
     return leaflet_url
 
-def get_enrichments_url(leaflet_url):
+def parse_viewer_page(leaflet_url):
     """
     Implement step 2. The enrichments are originally split into 15 page chunks,
     but that doesn't actually matter for some reason. We grab the url for the
@@ -103,11 +117,14 @@ def get_enrichments_url(leaflet_url):
     
     enrichment_url = enrichment_urls[first_key]
     enrichment_url = enrichment_url.replace(first_key, "1-1000")
-    
-    print(f"{enrichment_url=}")
-    return enrichment_url
 
-def get_product_ids(enrichments_url):    
+    print(f"{enrichment_url=}")
+    
+    leaflet_name = data["name"]
+    
+    return enrichment_url, leaflet_name
+
+def parse_enrichments(enrichments_url):    
     r = requests.get(enrichments_url)
     print(f"{r.status_code=}")
     enrichments = r.json()["enrichments"]
@@ -121,7 +138,7 @@ def get_product_ids(enrichments_url):
     print(f"{len(product_ids)=}")
     return product_ids
 
-def get_products_info(product_ids):
+def parse_products(product_ids):
     ids_str = ",".join(product_ids)
     r = requests.get(f"https://www.aldi-nord.de/api/product/pds/{ids_str}")
     print(f"{r.status_code=}")
@@ -131,9 +148,16 @@ def get_products_info(product_ids):
     
     found_unique_products = []
     found_unique_names = []
-
-    for product_data in products_data:        
-        product_info = get_product_info(product_data)
+        
+    for product_data in products_data:
+        try: # some items are just weird sometimes
+            product_info = get_product_info(product_data)
+        except Exception as e:
+            id = product_data["objectID"]
+            print(f"Error parsing {id}: {repr(e)}")
+            continue
+        if not product_info:
+            continue
 
         found_unique_name = product_info["name"]
         if found_unique_name in found_unique_names:
@@ -144,7 +168,7 @@ def get_products_info(product_ids):
             
     print(f"{len(found_unique_products)=}")
     
-    return found_unique_products
+    return found_unique_products, products_data
 
 def filter_target_products(products):        
     found_target_products = [
@@ -156,6 +180,9 @@ def filter_target_products(products):
     return found_target_products
 
 def get_product_info(product_data):
+    if "currentPrice" not in product_data:
+        return None
+    
     id = product_data["objectID"]
     name = product_data["name"]
     
@@ -272,16 +299,27 @@ def create_product_string(product):
     
     return f"{name}: {price}€ (~~{original_price}€~~, -{sale_percentage}%)"
 
-target_products, products = get_products()
+data = get_data()
+os.makedirs("/app/output/global/Aldi/archive", exist_ok=True)
 
-with open("/app/output/run/leaflet_data.json", "w") as f:
-    json.dump({
-        "target_products": target_products,
-        "products": products,
-    }, f)
+processed_data = data["processed"]
+with open("/app/output/global/Aldi/current_leaflet_data.json", "w") as f:
+    json.dump(processed_data, f)
 
-if len(target_products) > 0:
+archival_data = data["archival"]
+current_unix = int(today.timestamp())
+with open(f"/app/output/global/Aldi/archive/leaflet_data_{current_unix}.json", "w") as f:
+    json.dump(archival_data, f)
+
+found_target_products = processed_data["found_target_products_info"]
+if len(found_target_products) > 0:
     with open("/app/output/output.json", "w") as f:
         json.dump({
-            "webhook": create_webhook(target_products)
+            "webhook": create_webhook(found_target_products)
         }, f)
+
+all_valid_products_info = processed_data["all_products_info"]
+all_valid_products_count = len(all_valid_products_info)
+if all_valid_products_count < 250:
+    print(f"Found just {all_valid_products_count} valid products")
+    sys.exit(1)
