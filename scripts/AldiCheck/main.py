@@ -49,9 +49,8 @@ TARGET_CATEGORIES = [
 
 def get_data():
     leaflet_url = parse_aldi_page()
-    leaflet_name = leaflet_url.split("/")[-1]
     
-    enrichment_url, leaflet_url = parse_viewer_page(leaflet_url)
+    enrichment_url, leaflet_name = parse_viewer_page(leaflet_url)
     ids = parse_enrichments(enrichment_url)
     products, raw_products = parse_products(ids)
     target_products = filter_target_products(products)
@@ -61,7 +60,7 @@ def get_data():
             "all_products_info": products,
         },
         "archival": {
-            "current_time": today.timestamp(),
+            "current_time": int(today.timestamp()),
             "leaflet_name": leaflet_name,
             "raw_products": raw_products
         }
@@ -121,6 +120,7 @@ def parse_viewer_page(leaflet_url):
     print(f"{enrichment_url=}")
     
     leaflet_name = data["name"]
+    print(f"{leaflet_name=}")
     
     return enrichment_url, leaflet_name
 
