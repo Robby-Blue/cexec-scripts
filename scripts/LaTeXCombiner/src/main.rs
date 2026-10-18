@@ -1,13 +1,22 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{collections::HashMap, fs, path::Path};
 
 mod combiner;
 mod parser;
 mod planner;
 
-use crate::planner::{CommitInfo, Plan};
+use crate::{
+    CombineMode::Test,
+    planner::{CommitInfo, Plan},
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config_path = Path::new("/app/vars.json");
+    let config_str = fs::read_to_string(config_path)?;
+    let config: Config = serde_json::from_str(config_str.as_str())?;
+
+    let mode = config.mode.unwrap_or(CombineMode::ContentChanges);
+
     let path = Path::new("/app/input/repo");
     let structure = parser::parse_structure(path)?;
     println!("Parsed structure");
@@ -19,9 +28,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let planner = planner::Planner { last_edit_times };
     let globals = structure.globals.clone();
-    let plans = planner.plan_structure(&structure, &globals);
+    let plans = planner.plan_structure(&structure, &globals, &mode);
     println!("Created {} plans", plans.iter().count());
 
+    match mode {
+        CombineMode::AllChanges | CombineMode::ContentChanges => write_plans(plans, &path),
+        Test => Ok(()),
+    }?;
+    Ok(())
+}
+
+fn write_plans(plans: Vec<Plan>, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let last_builds_path = Path::new("/app/input/last_build_times.json");
     let mut last_builds: HashMap<String, i64> = if last_builds_path.exists() {
         let last_builds_str = fs::read_to_string(last_builds_path)?;
@@ -30,11 +47,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         HashMap::new()
     };
 
-    let plans = filter_new_plans(plans, &last_builds);
-    println!("{} new plans", plans.iter().count());
+    let new_plans = filter_new_plans(plans, &last_builds);
+    println!("{} new plans", new_plans.iter().count());
 
-    for (i, plan) in plans.iter().enumerate() {
-        println!("Writing plan {i}");
+    for (i, plan) in new_plans.iter().enumerate() {
         let output_path = Path::new("/app/output/run").join(i.to_string());
 
         combiner::combine(&plan, path, &output_path)?;
@@ -42,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("Wrote plans");
 
-    let output_json = get_output_json(&plans);
+    let output_json = get_output_json(&new_plans);
     let json_string = serde_json::to_string_pretty(&output_json)?;
     fs::write("/app/output/output.json", json_string)?;
     println!("Wrote output.json");
@@ -111,4 +127,16 @@ fn get_data_for_task(id: usize, plan: &Plan) -> Value {
             "server": final_path,
         }],
     })
+}
+
+#[derive(serde::Deserialize)]
+struct Config {
+    pub mode: Option<CombineMode>,
+}
+
+#[derive(serde::Deserialize)]
+enum CombineMode {
+    AllChanges,
+    ContentChanges,
+    Test,
 }

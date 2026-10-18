@@ -42,8 +42,8 @@ def walk_file(git_file_path):
     return infos
 
 with open("/app/vars.json") as f:
-    data = json.load(f)
-repo_url = data["repo_url"]
+    vars = json.load(f)
+repo_url = vars["repo_url"]
 p = subprocess.Popen(["git", "clone", repo_url, "repo"],
         cwd="/app/workspace")
 p.wait()
@@ -52,6 +52,8 @@ assert p.returncode == 0
 edit_infos = walk_file(".")
 with open("/app/output/run/git_file_edit_infos.json", "w") as f:
     json.dump(edit_infos, f)
+
+combiner_vars = vars.get("combiner", {})
 
 with open("/app/output/output.json", "w") as f:
     json.dump({
@@ -84,6 +86,7 @@ with open("/app/output/output.json", "w") as f:
                             "client": "repo"
                         },
                     ],
+                    "vars": combiner_vars
                 }
             }
         ]

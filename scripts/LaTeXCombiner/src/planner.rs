@@ -3,13 +3,20 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::CombineMode;
+
 pub struct Planner {
     pub last_edit_times: HashMap<String, CommitInfo>,
 }
 
 impl Planner {
-    pub fn plan_structure(&self, doc: &Document, globals: &HashMap<String, String>) -> Vec<Plan> {
-        self.walk_document(doc, globals, vec![])
+    pub fn plan_structure(
+        &self,
+        doc: &Document,
+        globals: &HashMap<String, String>,
+        mode: &CombineMode,
+    ) -> Vec<Plan> {
+        self.walk_document(doc, globals, vec![], mode)
     }
 
     fn walk_document(
@@ -17,6 +24,7 @@ impl Planner {
         doc: &Document,
         globals: &HashMap<String, String>,
         mut title_path: Vec<String>,
+        mode: &CombineMode,
     ) -> Vec<Plan> {
         let mut plans = vec![];
 
@@ -29,16 +37,19 @@ impl Planner {
             title_path: title_path.clone(),
             globals: globals.clone(),
             elements: elements.clone(),
-            commit: self.get_commit(&elements),
+            commit: self.get_commit(&elements, mode),
         };
         plans.push(plan);
 
         let iter = doc.parts.iter();
         for part in iter {
             match &**part {
-                Section::Document(document) => {
-                    plans.append(&mut self.walk_document(&document, globals, title_path.clone()))
-                }
+                Section::Document(document) => plans.append(&mut self.walk_document(
+                    &document,
+                    globals,
+                    title_path.clone(),
+                    mode,
+                )),
                 Section::Section(section_path) => {
                     let elements = plan_section(&section_path);
 
@@ -50,7 +61,7 @@ impl Planner {
                         title_path: new_title_path,
                         globals: globals.clone(),
                         elements: elements.clone(),
-                        commit: self.get_commit(&elements),
+                        commit: self.get_commit(&elements, mode),
                     };
 
                     plans.push(plan)
@@ -61,7 +72,7 @@ impl Planner {
         plans
     }
 
-    fn get_commit(&self, elements: &Vec<NestedElement>) -> CommitInfo {
+    fn get_commit(&self, elements: &Vec<NestedElement>, mode: &CombineMode) -> CommitInfo {
         let repo_path = Path::new("/app/input/repo");
 
         let mut paths = vec![];
@@ -74,7 +85,9 @@ impl Planner {
 
             paths.push("./".to_string() + rel.to_str().expect("bad name"));
         }
-        paths.push("./globals/release".to_string());
+        if matches!(mode, CombineMode::AllChanges) {
+            paths.push("./globals/release".to_string());
+        }
 
         let mut latest_commit: Option<CommitInfo> = None;
 
@@ -82,7 +95,7 @@ impl Planner {
             let this_commit = self
                 .last_edit_times
                 .get(&path)
-                .expect("folder not found in repo");
+                .expect(&format!("folder {path} not found in repo"));
 
             if latest_commit.is_none()
                 || this_commit.timestamp > latest_commit.clone().unwrap().timestamp
