@@ -19,19 +19,26 @@ def docs_equal(last_doc, doc):
 
 def compile():
     command = ["lualatex", "--shell-escape",
-        "-interaction=nonstopmode", "-halt-on-error", 
+        "-halt-on-error", 
         "-output-directory=/app/workspace",
         "/app/workspace/main.tex"]
     
     print("$ " + " ".join(command))
     p = subprocess.Popen(command,
-        stdout=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         cwd="/app/workspace")
     
     p.wait()
-
-    doc = pymupdf.open("/app/workspace/main.pdf")
-    return doc
+    
+    pdf_path = "/app/workspace/main.pdf"
+    if os.path.exists(pdf_path):
+        doc = pymupdf.open(pdf_path)
+        return doc
+    else:
+        log = p.stdout.read().decode("UTF-8")
+        print(log)
+        sys.exit(1)
 
 def is_top_level_doc():
     if not os.path.exists("/app/vars.json"):
