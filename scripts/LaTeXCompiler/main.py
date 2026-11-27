@@ -18,7 +18,8 @@ def docs_equal(last_doc, doc):
     return True, 0
 
 def compile():
-    command = ["lualatex", "--shell-escape",
+    command = ["timeout", "3600",
+        "lualatex", "--shell-escape",
         "-halt-on-error", 
         "-output-directory=/app/workspace",
         "/app/workspace/main.tex"]
@@ -32,12 +33,13 @@ def compile():
     p.wait()
     
     pdf_path = "/app/workspace/main.pdf"
-    if os.path.exists(pdf_path):
+    if p.returncode == 0 and os.path.exists(pdf_path):
         doc = pymupdf.open(pdf_path)
         return doc
     else:
         log = p.stdout.read().decode("UTF-8")
         print(log)
+        print(p.returncode)
         sys.exit(1)
 
 def is_top_level_doc():
