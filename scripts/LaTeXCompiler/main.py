@@ -20,6 +20,7 @@ def docs_equal(last_doc, doc):
 def compile():
     command = ["timeout", "3600",
         "lualatex", "--shell-escape",
+        "-interaction=nonstopmode",
         "-halt-on-error", 
         "-output-directory=/app/workspace",
         "/app/workspace/main.tex"]
@@ -27,9 +28,10 @@ def compile():
     print("$ " + " ".join(command))
     p = subprocess.Popen(command,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         cwd="/app/workspace")
     
+    log = p.stdout.read().decode("UTF-8")
     p.wait()
     
     pdf_path = "/app/workspace/main.pdf"
@@ -37,7 +39,6 @@ def compile():
         doc = pymupdf.open(pdf_path)
         return doc
     else:
-        log = p.stdout.read().decode("UTF-8")
         print(log)
         print(p.returncode)
         sys.exit(1)
